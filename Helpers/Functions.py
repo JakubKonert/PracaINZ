@@ -7,8 +7,6 @@ import psutil
 import io
 from zipfile import ZipFile
 import datetime
-import keras
-import tensorflow as tf
 import numpy as np
 
 
@@ -240,68 +238,6 @@ def CollectData(imagesCollectList, camName,counter,collectDataPath):
     counter = 0
     return imagesCollectList,  counter
 
-def ConvertToTFLite(model):
-    tfLiteConverter = tf.lite.TFLiteConverter.from_keras_model(model)
-    tfLiteModel = tfLiteConverter.convert()
-    return tfLiteModel
-
-def LoadModel(path):
-    #TF lite inaczej się wgrywa
-    tf.keras.backend.clear_session()
-    model = keras.models.load_model(path)
-    model = tf.saved_model.load(path)
-    tfLiteModel = ConvertToTFLite(model)
-    model = tfLiteModel
-    return model
-
-
-def PredictByModel(model, image, classesList, colorList):
-    bboxImage = CreateBBox(image, model, classesList, colorList)
-    return bboxImage
-
-
-def CreateBBox(image, model, classesList, colorList, thresh=0.5):
-    inputTensor = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2RGB)
-    inputTensor = tf.convert_to_tensor(inputTensor, dtype=tf.uint8)
-    inputTensor = inputTensor[tf.newaxis, ...]
-
-    detections = model(inputTensor)
-
-    bboxs = detections['detection_boxes'][0].numpy()
-    classIndexes = detections['detection_classes'][0].numpy().astype(
-        np.int32)
-    classScores = detections['detection_scores'][0].numpy()
-
-    imH, imW, imC = image.shape
-
-    bboxIdx = tf.image.non_max_suppression(
-        bboxs, classScores, max_output_size=50, iou_threshold=thresh, score_threshold=thresh)
-
-    if len(bboxs) != 0:
-        for i in bboxIdx:
-            bbox = tuple(bboxs[i].tolist())
-            classConfidence = round(100*classScores[i])
-            classIndex = classIndexes[i]
-
-            classLabelText = classesList[classIndex]
-            classColor = colorList[classIndex]
-
-            displayText = '{}: {}%'.format(classLabelText, classConfidence)
-
-            ymin, xmin, ymax, xmax = bbox
-
-            xmin, xmax, ymin, ymax = (
-                xmin*imW, xmax*imW, ymin*imH, ymax*imH)
-
-            xmin, xmax, ymin, ymax = int(xmin), int(
-                xmax), int(ymin), int(ymax)
-
-            cv2.rectangle(image, (xmin, ymin), (xmax, ymax),
-                        color=classColor, thickness=1)
-
-            cv2.putText(image, displayText, (xmin, ymin-10),
-                        cv2.FONT_HERSHEY_PLAIN, 1, classColor, 2)
-    return image
 
 #Master function
 def CamPreview(camID,camName,calibrationPath,modelPath,switchPreview,
@@ -356,7 +292,6 @@ def CamPreview(camID,camName,calibrationPath,modelPath,switchPreview,
 
                 if switchMark.value:
                     pass
-                    # frame = PredictByModel(model, frame, classesList, colorList)
 
                 if switchPreview.value:
                     recordTime = datetime.datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S-%f')[:-3]
